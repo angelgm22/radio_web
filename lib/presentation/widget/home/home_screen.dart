@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:radio_web/play_page.dart';
 import 'package:radio_web/screens/article_screen.dart';
 import 'package:transition/transition.dart' as trans;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,12 +17,21 @@ import 'package:radio_web/presentation/bloc/home/home_state.dart';
 import 'package:radio_web/weather/screens/location_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:assets_audio_player/assets_audio_player.dart';
+//import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:flutter_neumorphic/flutter_neumorphic.dart';
 import 'dart:js' as js;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:blur/blur.dart';
 import 'package:googleapis_auth/auth_io.dart';
+
+class VideoList {
+  String link;
+  String imgURL;
+  String name;
+  String descripcion;
+
+  VideoList(this.link, this.descripcion, this.imgURL, this.name);
+}
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({Key? key, this.title}) : super(key: key);
@@ -33,12 +43,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  List<VideoList> playList = [];
+
   late HomeCubit _homeCubit;
   bool RadioLoading = false;
-  AssetsAudioPlayer _assetsAudioPlayer = AssetsAudioPlayer();
+  // AssetsAudioPlayer _assetsAudioPlayer = AssetsAudioPlayer();
 
   final List<StreamSubscription> _subscriptions = [];
-  List<Audio> audios = [];
+  // List<Audio> audios = [];
 
   List _isHovering = [false, false, false, false, false, false, false];
   int _selectedHeaderMenuIndex = 0;
@@ -71,6 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isSwitched = false;
   int rIndex1 = 0;
   int rIndex2 = 0;
+  String frase = '';
+  String sub_frase = '';
 
   Random rnd = new Random();
 
@@ -79,21 +93,44 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
 
     _homeCubit = BlocProvider.of<HomeCubit>(context);
-    getEstaciones();
     getData();
+    getVideoEst();
     RadioLoading = false;
     _pageController1 = PageController(viewportFraction: 0.8);
 
     // _GetToken();
   }
 
+  void getVideoEst() async {
+    final resultVideoEst = FirebaseFirestore.instance.collection('videoest');
+
+    playList = [];
+
+    await resultVideoEst.get().then((query) {
+      query.docs.forEach((element) async {
+        VideoList _videos = VideoList(
+            element['link'].toString(),
+            element['descripcion'],
+            element['imgURL'].toString(),
+            element['name']);
+
+        print('Link ${element['link'].toString()}');
+        setState(() {
+          playList.add(_videos);
+        });
+      });
+    }).catchError((onError) {
+      print('Error $onError');
+    });
+  }
+
   @override
   void dispose() {
-    _assetsAudioPlayer.dispose();
+    // _assetsAudioPlayer.dispose();
     super.dispose();
   }
 
-  void getEstaciones() async {
+  /*void getEstaciones() async {
     RadioLoading = true;
     audios = [];
 
@@ -151,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Audio find(List<Audio> source, String fromPath) {
     return source.firstWhere((element) => element.path == fromPath);
   }
+*/
 
   getData() async {
     print('Get Data ');
@@ -219,6 +257,8 @@ class _HomeScreenState extends State<HomeScreen> {
       desde = result.get('desde');
       hasta = result.get('hasta');
       telefono = result.get('telefono');
+      frase = result.get('frase');
+      sub_frase = result.get('sub_frase');
       print("Nick $title");
       Loading = true;
       AvisoText = '$title con domicilio en $direccion es el responsable del uso y protección de sus datos personales, y al respecto le informamos lo siguiente: \n ' +
@@ -408,6 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 // reproductor estaciones
+/*
   Widget _BuildRadioS(BuildContext context) {
     double _screenWidth = MediaQuery.of(context).size.width;
 
@@ -486,7 +527,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }));
   }
-
+*/
   //region Top Banner
   // Menu Superior
   Widget _buildTopBanner(BuildContext context) {
@@ -497,7 +538,16 @@ class _HomeScreenState extends State<HomeScreen> {
     minS = _screenWidth <= minSize;
 
     return Container(
-      color: Color.fromARGB(255, 26, 36, 49),
+ decoration: const BoxDecoration(
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+              Colors.blue,
+              Colors.black,
+              Colors.black,
+              Colors.purple
+            ])),      
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
@@ -509,24 +559,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.all(16),
                 child: Image.asset(
                   "assets/images/fchica.jpg",
-                  width: 300,
+                  width: minS ? 150 : 300,
                 ),
               ),
               LocationScreen(),
             ],
           ),
           _buildHeaderMenus(),
+
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _AnimatedSwitcher(context, rIndex1),
-              _Carousel(context),
+              // _Carousel(context),
+              !minS ?
+              _VideoEsta(context)
+              : SizedBox(),
               _AnimatedSwitcher(context, rIndex2),
             ],
           ),
+          minS ? _VideoEsta(context) : SizedBox(),
           Text(
-            'Escucha tu estación de Radio Favorita',
+            frase,
             style: TextStyle(
                 fontSize: minS
                     ? 16
@@ -540,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             width: _screenWidth / 2,
             child: Text(
-              'Tu mejor música en el mismo lugar.',
+              sub_frase,
               style: TextStyle(
                   fontSize: minS
                       ? 14
@@ -552,7 +607,7 @@ class _HomeScreenState extends State<HomeScreen> {
               textAlign: TextAlign.center,
             ),
           ),
-          !RadioLoading ? _BuildRadioS(context) : CircularProgressIndicator(),
+          //   !RadioLoading ? _BuildRadioS(context) : CircularProgressIndicator(),
         ],
       ),
     );
@@ -720,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _Pagina = 3;
             _selectedHeaderMenuIndex = 3;
-            _Titulo = 'Estaciones';
+            _Titulo = 'Estaciones de radio';
           });
         }),
         _buildHeaderMenu('Acerca de FC Comms', 4, () {
@@ -778,28 +833,27 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildBottomMenu(FontAwesomeIcons.facebook, 0, () {
           launchUrl(Uri.parse('https://www.facebook.com/fchica.comms'));
         }),
-               ElevatedButton(
-              child: Image.asset(
-                'assets/images/disponibleApple.png',
-                width: 150.0,
-                fit: BoxFit.fitWidth,
-              ),
-              
-              onPressed: () {
-           //     launchUrl(Uri.parse('https://apps.apple.com/us/app/fc-comms/id1632913950'));
-              },
-            ),
-            ElevatedButton(
-              child: Image.asset(
-                'assets/images/disponibleGoogle.png',
-                width: 150.0,
-                fit: BoxFit.fitWidth,
-              ),
-              onPressed: () {
-               launchUrl(Uri.parse('https://play.google.com/store/apps/details?id=com.angelgm22.radio'));
-              },
-            )
-       
+        ElevatedButton(
+          child: Image.asset(
+            'assets/images/disponibleApple.png',
+            width: 150.0,
+            fit: BoxFit.fitWidth,
+          ),
+          onPressed: () {
+            //     launchUrl(Uri.parse('https://apps.apple.com/us/app/fc-comms/id1632913950'));
+          },
+        ),
+        ElevatedButton(
+          child: Image.asset(
+            'assets/images/disponibleGoogle.png',
+            width: 150.0,
+            fit: BoxFit.fitWidth,
+          ),
+          onPressed: () {
+            launchUrl(Uri.parse(
+                'https://play.google.com/store/apps/details?id=com.angelgm22.radio'));
+          },
+        )
       ],
     );
   }
@@ -825,13 +879,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     _Pagina == 0
-                        ? 'Noticias PubliNet'
+                        ? 'Noticias FC-Comms'
                         : _Pagina == 1
                             ? 'Anuncios'
                             : _Pagina == 2
                                 ? 'Noticias'
                                 : _Pagina == 3
-                                    ? 'Estaciones'
+                                    ? 'Estaciones de Radio'
                                     : 'Acerca de ',
                     style: TextStyle(
                         fontSize: minS
@@ -873,7 +927,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? 32
                         : 64,
               ),
-              Column(
+              /* Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -891,6 +945,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(
                     height: 8,
+                  ),
+                  _buildHighlightsCarousel3(context),
+                ],
+              ) */
+              Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Noticias',
+                    style: TextStyle(
+                        fontSize: minS
+                            ? 12
+                            : fontS
+                                ? 18
+                                : 24,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
                   ),
                   _buildHighlightsCarousel3(context),
                 ],
@@ -1212,7 +1285,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Image.network(
                             _highlights[index].imageAsset,
                             width: minS
-                                ? (MediaQuery.of(context).size.width / 3) - 5
+                                ? (MediaQuery.of(context).size.width / 2) - 40
                                 : fontS
                                     ? (MediaQuery.of(context).size.width / 3) -
                                         10
@@ -1457,6 +1530,54 @@ class _HomeScreenState extends State<HomeScreen> {
     //: SizedBox();
   }
 
+// Carrusel Video Estaciones
+  Widget _VideoEsta(BuildContext context) {
+    double _screenWidth = MediaQuery.of(context).size.width;
+    int minSize = 500;
+    double itemWidth = 450;
+    double viewportFraction = 0.85;
+    bool fontS = _screenWidth < 1024.0;
+    bool minS = _screenWidth <= minSize;
+
+    if (_screenWidth <= minSize) {
+      itemWidth = _screenWidth / 2.0;
+      viewportFraction = 0.55;
+    } else {
+      itemWidth = _screenWidth; // / 2.5;
+      viewportFraction = 0.275;
+    }
+    int min = 0;
+    int max = _highlights.length - 1;
+    Random rnd = new Random();
+    int r = min + rnd.nextInt(max);
+
+    return Container(
+        width: minS
+            ? MediaQuery.of(context).size.width  - 5
+            : fontS
+                ? (MediaQuery.of(context).size.width / 3) - 10
+                : (MediaQuery.of(context).size.width / 3) - 30,
+        height: minS ? 450 : 450.0,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18)),
+        child: _highlights.length != 0
+            ? Center(
+                child: Card(
+                    color: Colors.white.withOpacity(0.05),
+                    elevation: 10,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18.0),
+                    ),
+                    child: Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Column(
+                          children: [
+                            PlayPage(),
+                          ],
+                        ))))
+            : SizedBox());
+    //: SizedBox();
+  }
+
 //Cuerpo principal Paginas
   Widget _buildHighlights1(BuildContext context) {
     double _screenWidth = MediaQuery.of(context).size.width;
@@ -1525,6 +1646,22 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(
                 width: 64,
               ),
+              /*  Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Noticias',
+                    style: Theme.of(context).textTheme.headline4!.copyWith(
+                        color: Colors.black, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(
+                    height: 8,
+                  ),
+                  _buildHighlightsCarousel3(context),
+                ],
+              ) */
               Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1539,6 +1676,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 8,
                   ),
                   _buildHighlightsCarousel3(context),
+                  // VideoPlay()
                 ],
               )
             ],
@@ -1811,7 +1949,7 @@ class _HomeScreenState extends State<HomeScreen> {
         shrinkWrap: true,
         scrollDirection: Axis.vertical,
         physics: ClampingScrollPhysics(),
-        itemCount: audios.length,
+        itemCount: playList.length,
         itemBuilder: (BuildContext, index) {
           return GestureDetector(
               onTap: () async {
@@ -1819,11 +1957,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   trans.Transition(
                     child: ArticleScreen(
-                      articleUrl: audios[index].metas.id.toString(),
-                      content: audios[index].metas.title.toString(),
+                      articleUrl: '',
+                      content: playList[index].descripcion.toString(),
                       date: ' ',
-                      image: audios[index].metas.image!.path,
-                      title: audios[index].metas.album.toString(),
+                      image: playList[index].imgURL,
+                      title: playList[index].name.toString(),
                       tipo: 'noticias',
                     ),
                     transitionEffect: trans.TransitionEffect.BOTTOM_TO_TOP,
@@ -1842,7 +1980,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CachedNetworkImage(
-                        imageUrl: audios[index].metas.image!.path,
+                        imageUrl: playList[index].imgURL,
                         width: itemWidth / 5,
                         fit: BoxFit.fitWidth,
                         placeholder: (context, url) =>
@@ -1865,7 +2003,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Text(
-                                      audios[index].metas.id.toString(),
+                                      playList[index].name,
                                       style: Theme.of(context)
                                           .textTheme
                                           .headline6!
@@ -1878,7 +2016,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       height: 8,
                                     ),
                                     Text(
-                                      audios[index].metas.title.toString(),
+                                      playList[index].descripcion.toString(),
                                       style: Theme.of(context)
                                           .textTheme
                                           .subtitle1!
